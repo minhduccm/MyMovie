@@ -12,10 +12,16 @@ import MBProgressHUD
 
 class MoviesViewController: UITableViewController {
   
+  // constants
+  let apiKey = "a07e22bc18f5cb106bfe4cc1f83ad8ed"
+  
   lazy var reachabilityManager = ReachabilityManager()
-  var movies = [NSDictionary]()
   lazy var searchBar = UISearchBar()
   lazy var refreshCtl = UIRefreshControl()
+  
+  var isClearButtonClicked = false
+  var isRemovingTextWithBackspace = false
+  var movies = [NSDictionary]()
   
   @IBOutlet var movieTableView: UITableView!
   
@@ -24,8 +30,11 @@ class MoviesViewController: UITableViewController {
       return
     }
     
-    let apiKey = "a07e22bc18f5cb106bfe4cc1f83ad8ed"
-    let url = URL(string: "https://api.themoviedb.org/3/movie/now_playing?api_key=\(apiKey)")
+    var url = URL(string: "https://api.themoviedb.org/3/movie/now_playing?api_key=\(apiKey)")
+    if searchBar.text != "" {
+      url = URL(string: "https://api.themoviedb.org/3/search/movie?api_key=\(apiKey)&query=\(searchBar.text!)")
+    }
+    
     let request = URLRequest(
       url: url!,
       cachePolicy: NSURLRequest.CachePolicy.reloadIgnoringLocalCacheData,
@@ -75,7 +84,7 @@ class MoviesViewController: UITableViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    self.clearsSelectionOnViewWillAppear = false
+    self.clearsSelectionOnViewWillAppear = true
     reachabilityManager.reachibilityDelegate = self
     initPullToRefresh()
     initSearchBar()
@@ -85,6 +94,11 @@ class MoviesViewController: UITableViewController {
   }
   
   override func viewWillAppear(_ animated: Bool) {
+    
+    if let row = movieTableView.indexPathForSelectedRow {
+      movieTableView.deselectRow(at: row, animated: false)
+    }
+    
     if reachabilityManager.isUnreachable() {
       reachabilityManager.showNetworkProblemAlert(sender: self)
     }
@@ -123,20 +137,46 @@ class MoviesViewController: UITableViewController {
 }
 
 extension MoviesViewController : UISearchBarDelegate {
+  
   func searchBarTextDidBeginEditing(_ searchBar: UISearchBar) {
     searchBar.setShowsCancelButton(true, animated: true)
   }
   
   func searchBarTextDidEndEditing(_ searchBar: UISearchBar) {
     searchBar.setShowsCancelButton(false, animated: true)
+    loadData()
+    searchBar.endEditing(true)
   }
   
   func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
     searchBar.setShowsCancelButton(false, animated: true)
+    searchBar.text = ""
+    searchBar.endEditing(true)
+    
   }
   
   func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-    //
+    searchBar.endEditing(true)
+  }
+  
+  func searchBarShouldBeginEditing(_ searchBar: UISearchBar) -> Bool {
+    if isClearButtonClicked {
+      isClearButtonClicked = false
+      return false
+    }
+    return true
+  }
+  
+  func searchBar(_ searchBar: UISearchBar, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+    isRemovingTextWithBackspace = (NSString(string: searchBar.text!).replacingCharacters(in: range, with: text).characters.count == 0)
+    return true
+  }
+  
+  func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+    if searchText.characters.count == 0 && !isRemovingTextWithBackspace {
+      isClearButtonClicked = true
+      loadData()
+    }
   }
 }
 
